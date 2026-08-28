@@ -5,33 +5,31 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Realidad Aumentada - Amazonía del Perú</title>
   
-  <!-- Importamos A-Frame (Motor 3D) y MindAR (Motor de rastreo de imágenes) -->
+  <!-- Importamos A-Frame y MindAR -->
   <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
   <script>
-    // Componente mejorado para borrar el fondo BLANCO del video
+    // Componente Shader para eliminar fondo BLANCO en tiempo real
     AFRAME.registerComponent('chromakey', {
       schema: {
         src: { type: 'selector' },
-        // Color a borrar: Blanco (Red=1, Green=1, Blue=1)
         color: { default: '1.0 1.0 1.0' } 
       },
       init: function () {
         const data = this.data;
         const el = this.el;
+        this.videoEl = data.src;
         
-        // Creamos la textura con el video. Se asegura RGBAFormat.
-        this.videoTexture = new THREE.VideoTexture(data.src);
+        // Textura de video optimizada para WebGL
+        this.videoTexture = new THREE.VideoTexture(this.videoEl);
         this.videoTexture.minFilter = THREE.LinearFilter;
         this.videoTexture.magFilter = THREE.LinearFilter;
         this.videoTexture.format = THREE.RGBAFormat;
 
-        // Configuramos el Shader (Filtro visual)
         this.material = new THREE.ShaderMaterial({
           uniforms: {
-            color: { value: new THREE.Color(0xffffff) }, 
-            // Variable de textura correcta
+            color: { value: new THREE.Color(0xffffff) },
             videoTextureSampler: { value: this.videoTexture }
           },
           vertexShader: `
@@ -47,44 +45,48 @@
             varying vec2 vUv;
             void main() {
               vec4 tColor = texture2D(videoTextureSampler, vUv);
-              
-              // Calcula la diferencia entre el color del pixel y el BLANCO
               float diff = length(tColor.rgb - color.rgb);
-              
-              // Tolerancia para borrar el blanco (Ajustado para no borrar detalles del diseño)
               float a = smoothstep(0.2, 0.4, diff); 
-              
               gl_FragColor = vec4(tColor.rgb, tColor.a * a);
             }
           `,
-          transparent: true // Activa la transparencia en A-Frame
+          transparent: true
         });
 
         el.getObject3D('mesh').material = this.material;
       },
-      // Fuerza a A-Frame a actualizar la textura en cada frame de video.
       tick: function () {
-        if (this.material && this.videoTexture) {
-            this.videoTexture.needsUpdate = true;
+        // Mantiene la textura siempre actualizada sin congelamientos
+        if (this.material && this.videoTexture && this.videoEl && !this.videoEl.paused) {
+          this.videoTexture.needsUpdate = true;
         }
       }
     });
 
-    // Componente para controlar la reproducción del video
+    // Controlador AR optimizado para compatibilidad móvil (Android / iOS)
     AFRAME.registerComponent('ar-controller', {
       init: function () {
         const target = this.el;
         const video = document.querySelector('#video-amazonia');
+        const videoPlane = document.querySelector('#video-plane');
         const overlay = document.querySelector('#ui-overlay');
         const startBtn = document.querySelector('#btn-iniciar');
         const audioBtn = document.querySelector('#btn-audio');
 
-        // Desbloqueo inicial requerido por Chrome/Safari
+        // Desbloqueo y arranque fluido al presionar Empezar
         startBtn.addEventListener('click', () => {
           overlay.style.display = 'none';
+          
+          // Aseguramos propiedades de autoplay en Android/iOS
+          video.muted = true;
+          video.defaultMuted = true;
+          
+          // Mantenemos el decodificador activo en segundo plano
           video.play().then(() => {
-              video.pause(); 
-          }).catch((e) => console.log("Auto-play prevenido: ", e));
+            console.log("Decodificador de video activo correctamente.");
+          }).catch((err) => {
+            console.warn("Autoplay en espera de interacción: ", err);
+          });
         });
 
         // Control del botón de audio flotante
@@ -93,18 +95,25 @@
           audioBtn.innerText = video.muted ? "🔊 Activar Audio" : "🔇 Silenciar";
         });
 
-        // Cuando la cámara detecta la imagen impresa
-        target.addEventListener('targetFound', event => {
+        // Primera detección de imagen
+        target.addEventListener('targetFound', () => {
           console.log("¡Imagen encontrada!");
-          video.play();
-          audioBtn.style.display = 'block'; 
+          
+          // Reinicia desde el segundo 0 y reproduce de inmediato
+          video.currentTime = 0;
+          video.play().catch(e => console.log(e));
+          
+          // Mostramos el plano con la animación y el botón de audio
+          videoPlane.setAttribute('visible', true);
+          audioBtn.style.display = 'block';
         });
 
-        // Cuando la cámara pierde de vista la imagen
-        target.addEventListener('targetLost', event => {
-          console.log("Imagen perdida.");
-          video.pause();
-          audioBtn.style.display = 'none'; 
+        // Pérdida de foco de la imagen
+        target.addEventListener('targetLost', () => {
+          console.log("Imagen fuera de cuadro.");
+          // Ocultamos el plano para que no flote en la nada
+          videoPlane.setAttribute('visible', false);
+          audioBtn.style.display = 'none';
         });
       }
     });
@@ -114,13 +123,13 @@
     body {
       margin: 0;
       overflow: hidden;
-      font-family: 'Inter', sans-serif;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
     }
     
     #ui-overlay {
       position: absolute;
       top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0, 0, 0, 0.85);
+      background: rgba(0, 0, 0, 0.88);
       z-index: 9999;
       display: flex;
       flex-direction: column;
@@ -129,24 +138,29 @@
       color: white;
       text-align: center;
       padding: 20px;
+      box-sizing: border-box;
     }
 
-    #ui-overlay h1 { margin-bottom: 10px; font-size: 24px; }
-    #ui-overlay p { margin-bottom: 30px; font-size: 16px; opacity: 0.8; max-width: 300px; }
+    #ui-overlay h1 { margin: 0 0 12px 0; font-size: 24px; font-weight: 700; }
+    #ui-overlay p { margin: 0 0 32px 0; font-size: 15px; opacity: 0.85; max-width: 290px; line-height: 1.4; }
 
     .btn-action {
       background: linear-gradient(135deg, #2ecc71, #27ae60);
       color: white;
       border: none;
-      padding: 15px 40px;
-      font-size: 18px;
-      font-weight: bold;
+      padding: 16px 36px;
+      font-size: 17px;
+      font-weight: 700;
       border-radius: 50px;
-      box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);
+      box-shadow: 0 6px 20px rgba(46, 204, 113, 0.35);
       cursor: pointer;
-      transition: transform 0.2s;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      touch-action: manipulation;
     }
-    .btn-action:active { transform: scale(0.95); }
+    .btn-action:active { 
+      transform: scale(0.96); 
+      box-shadow: 0 2px 10px rgba(46, 204, 113, 0.2);
+    }
 
     #btn-audio {
       position: absolute;
@@ -155,8 +169,10 @@
       transform: translateX(-50%);
       z-index: 1000;
       display: none; 
-      background: rgba(0, 0, 0, 0.7);
-      padding: 10px 20px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(8px);
+      padding: 12px 24px;
       font-size: 14px;
     }
     
@@ -167,14 +183,14 @@
 
   <div id="ui-overlay">
     <h1>Amazonía del Perú</h1>
-    <p>Toca el botón y apunta tu cámara hacia la ilustración para ver la magia.</p>
+    <p>Toca el botón y apunta tu cámara hacia la ilustración para ver la animación.</p>
     <button id="btn-iniciar" class="btn-action">Empezar Experiencia</button>
   </div>
 
   <button id="btn-audio" class="btn-action">🔊 Activar Audio</button>
 
   <a-scene 
-    mindar-image="imageTargetSrc: targets.mind; filterMinCF:0.001; filterBeta: 0.01;" 
+    mindar-image="imageTargetSrc: ./targets.mind; filterMinCF:0.001; filterBeta: 0.01;" 
     color-space="sRGB" 
     renderer="colorManagement: true, physicallyCorrectLights" 
     vr-mode-ui="enabled: false" 
@@ -182,9 +198,8 @@
     
     <a-assets>
       <video id="video-amazonia" 
-             src="0825(1).mp4" 
+             src="./0825(1).mp4" 
              preload="auto" 
-             autoplay="false" 
              loop="true" 
              muted 
              playsinline 
@@ -197,15 +212,15 @@
 
     <a-entity mindar-image-target="targetIndex: 0" ar-controller>
       
-      <!-- AJUSTE CLAVE: Proporciones del plano (16:9) y escala general -->
-      <!-- Como tu video es panorámico (16:9), el width debe ser proporcionalmente mayor al height -->
-      <!-- Ajustamos la escala para que cubra la imagen base -->
+      <!-- El plano inicia en visible="false" para sincronización perfecta al enfocar -->
       <a-plane 
+        id="video-plane"
         position="0 0 0" 
         width="1.777" height="1"  
         scale="1.0 1.0 1.0"       
         chromakey="src: #video-amazonia"
-        material="transparent: true">
+        material="transparent: true"
+        visible="false">
       </a-plane>
       
     </a-entity>
