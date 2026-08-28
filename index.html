@@ -73,19 +73,26 @@
         const startBtn = document.querySelector('#btn-iniciar');
         const audioBtn = document.querySelector('#btn-audio');
 
+        let isTargetVisible = false;
+
+        const forcePlayVideo = () => {
+          if (video && video.paused) {
+            video.play().catch(e => console.log("Reintento play:", e));
+          }
+        };
+
         // Desbloqueo y arranque fluido al presionar Empezar
         startBtn.addEventListener('click', () => {
           overlay.style.display = 'none';
           
-          // Aseguramos propiedades de autoplay en Android/iOS
           video.muted = true;
           video.defaultMuted = true;
           
-          // Mantenemos el decodificador activo en segundo plano
+          // Arranca el video en segundo plano de inmediato para tener el decodificador listo
           video.play().then(() => {
-            console.log("Decodificador de video activo correctamente.");
+            console.log("Decodificador de video activo.");
           }).catch((err) => {
-            console.warn("Autoplay en espera de interacción: ", err);
+            console.warn("Autoplay en espera: ", err);
           });
         });
 
@@ -98,23 +105,29 @@
         // Primera detección de imagen
         target.addEventListener('targetFound', () => {
           console.log("¡Imagen encontrada!");
+          isTargetVisible = true;
           
-          // Reinicia desde el segundo 0 y reproduce de inmediato
-          video.currentTime = 0;
-          video.play().catch(e => console.log(e));
-          
-          // Mostramos el plano con la animación y el botón de audio
           videoPlane.setAttribute('visible', true);
           audioBtn.style.display = 'block';
+
+          // Asegura la reproducción inmediata sin trabas
+          forcePlayVideo();
         });
 
         // Pérdida de foco de la imagen
         target.addEventListener('targetLost', () => {
           console.log("Imagen fuera de cuadro.");
-          // Ocultamos el plano para que no flote en la nada
+          isTargetVisible = false;
           videoPlane.setAttribute('visible', false);
           audioBtn.style.display = 'none';
         });
+
+        // Reintento continuo en tick por si el primer frame en Android demoró en despertar
+        this.tick = function () {
+          if (isTargetVisible && video && video.paused) {
+            forcePlayVideo();
+          }
+        };
       }
     });
   </script>
