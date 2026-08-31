@@ -81,7 +81,6 @@
         const videoPlane = document.querySelector('#video-plane');
         const overlay = document.querySelector('#ui-overlay');
         const startBtn = document.querySelector('#btn-iniciar');
-        const audioBtn = document.querySelector('#btn-audio');
 
         let isTargetVisible = false;
 
@@ -95,21 +94,16 @@
         startBtn.addEventListener('click', () => {
           overlay.style.display = 'none';
           
-          video.muted = true;
-          video.defaultMuted = true;
+          // Desenmudecer el video de inmediato al hacer clic
+          video.muted = false;
+          video.defaultMuted = false;
           
           // Arranca el video en segundo plano de inmediato para tener el decodificador listo
           video.play().then(() => {
-            console.log("Decodificador de video activo.");
+            console.log("Decodificador de video activo y sonido habilitado.");
           }).catch((err) => {
             console.warn("Autoplay en espera: ", err);
           });
-        });
-
-        // Control del botón de audio flotante
-        audioBtn.addEventListener('click', () => {
-          video.muted = !video.muted;
-          audioBtn.innerText = video.muted ? "🔊 Activar Audio" : "🔇 Silenciar";
         });
 
         // Primera detección de imagen
@@ -118,7 +112,6 @@
           isTargetVisible = true;
           
           videoPlane.setAttribute('visible', true);
-          audioBtn.style.display = 'block';
 
           // Asegura la reproducción inmediata sin trabas
           forcePlayVideo();
@@ -129,7 +122,6 @@
           console.log("Imagen fuera de cuadro.");
           isTargetVisible = false;
           videoPlane.setAttribute('visible', false);
-          audioBtn.style.display = 'none';
         });
 
         // Reintento continuo en tick por si el primer frame en Android demoró en despertar
@@ -184,20 +176,6 @@
       transform: scale(0.96); 
       box-shadow: 0 2px 10px rgba(46, 204, 113, 0.2);
     }
-
-    #btn-audio {
-      position: absolute;
-      bottom: 30px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 1000;
-      display: none; 
-      background: rgba(15, 23, 42, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      backdrop-filter: blur(8px);
-      padding: 12px 24px;
-      font-size: 14px;
-    }
     
     .mindar-ui-overlay { display: none !important; }
   </style>
@@ -209,8 +187,6 @@
     <p>Toca el botón y apunta tu cámara hacia la ilustración para ver la animación.</p>
     <button id="btn-iniciar" class="btn-action">Empezar Experiencia</button>
   </div>
-
-  <button id="btn-audio" class="btn-action">🔊 Activar Audio</button>
 
   <a-scene 
     mindar-image="imageTargetSrc: ./targets_miraflores.mind; filterMinCF:0.001; filterBeta: 0.01;" 
@@ -225,7 +201,6 @@
              src="./miraflores.mp4" 
              preload="auto" 
              loop="true" 
-             muted 
              playsinline 
              webkit-playsinline
              crossorigin="anonymous">
