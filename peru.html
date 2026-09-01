@@ -3,25 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Realidad Aumentada - Amazonía del Perú</title>
+  <title>Realidad Aumentada - Perú</title>
   
   <!-- Importamos A-Frame y MindAR -->
   <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
   <script>
-    // Componente Shader para eliminar fondo BLANCO en tiempo real
+    // Componente Shader ACTUALIZADO a Chroma Key MAGENTA (Fucsia) con ALTA TOLERANCIA
     AFRAME.registerComponent('chromakey', {
       schema: {
         src: { type: 'selector' },
-        color: { default: '1.0 1.0 1.0' } 
+        color: { default: '1.0 0.0 1.0' } 
       },
       init: function () {
         const data = this.data;
         const el = this.el;
         this.videoEl = data.src;
         
-        // Textura de video optimizada para WebGL
         this.videoTexture = new THREE.VideoTexture(this.videoEl);
         this.videoTexture.minFilter = THREE.LinearFilter;
         this.videoTexture.magFilter = THREE.LinearFilter;
@@ -29,7 +28,8 @@
 
         this.material = new THREE.ShaderMaterial({
           uniforms: {
-            color: { value: new THREE.Color(0xffffff) },
+            // Hexadecimal del Magenta Puro: 0xff00ff
+            color: { value: new THREE.Color(0xff00ff) },
             videoTextureSampler: { value: this.videoTexture }
           },
           vertexShader: `
@@ -45,8 +45,19 @@
             varying vec2 vUv;
             void main() {
               vec4 tColor = texture2D(videoTextureSampler, vUv);
+              
+              // Calcula la diferencia entre el color del pixel y el MAGENTA
               float diff = length(tColor.rgb - color.rgb);
-              float a = smoothstep(0.2, 0.4, diff); 
+              
+              // TOLERANCIA ULTRA AMPLIADA: Atrapa todo el rango de rosados/fucsias de la compresión
+              float a = smoothstep(0.6, 0.85, diff); 
+              
+              // DESTRUCCIÓN DEL FANTASMA: Si el píxel es mayormente fondo (opacidad menor al 15%), 
+              // lo destruimos por completo (discard) para que no genere el velo semi-transparente.
+              if (a < 0.15) {
+                discard;
+              }
+              
               gl_FragColor = vec4(tColor.rgb, tColor.a * a);
             }
           `,
@@ -56,7 +67,6 @@
         el.getObject3D('mesh').material = this.material;
       },
       tick: function () {
-        // Mantiene la textura siempre actualizada sin congelamientos
         if (this.material && this.videoTexture && this.videoEl && !this.videoEl.paused) {
           this.videoTexture.needsUpdate = true;
         }
@@ -67,7 +77,7 @@
     AFRAME.registerComponent('ar-controller', {
       init: function () {
         const target = this.el;
-        const video = document.querySelector('#video-amazonia');
+        const video = document.querySelector('#video-target');
         const videoPlane = document.querySelector('#video-plane');
         const overlay = document.querySelector('#ui-overlay');
         const startBtn = document.querySelector('#btn-iniciar');
@@ -173,21 +183,22 @@
 <body>
 
   <div id="ui-overlay">
-    <h1>Amazonía del Perú</h1>
+    <h1>Perú</h1>
     <p>Toca el botón y apunta tu cámara hacia la ilustración para ver la animación.</p>
     <button id="btn-iniciar" class="btn-action">Empezar Experiencia</button>
   </div>
 
   <a-scene 
-    mindar-image="imageTargetSrc: ./targets.mind; filterMinCF:0.001; filterBeta: 0.01;" 
+    mindar-image="imageTargetSrc: ./targets_peru.mind; filterMinCF:0.001; filterBeta: 0.01;" 
     color-space="sRGB" 
     renderer="colorManagement: true, physicallyCorrectLights" 
     vr-mode-ui="enabled: false" 
     device-orientation-permission-ui="enabled: false">
     
     <a-assets>
-      <video id="video-amazonia" 
-             src="./0825(1).mp4" 
+      <!-- Asegúrate de poner el nombre correcto de tu nuevo video aquí -->
+      <video id="video-target" 
+             src="./peru.mp4" 
              preload="auto" 
              loop="true" 
              playsinline 
@@ -205,8 +216,8 @@
         id="video-plane"
         position="0 0 0" 
         width="1.777" height="1"  
-        scale="1.0 1.0 1.0"       
-        chromakey="src: #video-amazonia"
+        scale="1.5 1.5 1.5"       
+        chromakey="src: #video-target"
         material="transparent: true"
         visible="false">
       </a-plane>
