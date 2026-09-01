@@ -10,11 +10,12 @@
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
   <script>
-    // Componente Shader ACTUALIZADO a Chroma Key MAGENTA (Fucsia) con ALTA TOLERANCIA
+    // Componente Shader ACTUALIZADO apuntando al color exacto de compresión (#CB6370)
     AFRAME.registerComponent('chromakey', {
       schema: {
         src: { type: 'selector' },
-        color: { default: '1.0 0.0 1.0' } 
+        // RGB equivalente a #CB6370 (203/255, 99/255, 112/255)
+        color: { default: '0.796 0.388 0.439' } 
       },
       init: function () {
         const data = this.data;
@@ -28,8 +29,8 @@
 
         this.material = new THREE.ShaderMaterial({
           uniforms: {
-            // Hexadecimal del Magenta Puro: 0xff00ff
-            color: { value: new THREE.Color(0xff00ff) },
+            // Buscamos exactamente tu hexadecimal
+            color: { value: new THREE.Color(0xcb6370) },
             videoTextureSampler: { value: this.videoTexture }
           },
           vertexShader: `
@@ -44,19 +45,31 @@
             uniform sampler2D videoTextureSampler;
             varying vec2 vUv;
             void main() {
+              // 1. ELIMINAR LÍNEAS FLOTANTES EN LOS BORDES
+              // Corta un 1% de cada borde para ocultar líneas amarillas o artefactos de render
+              if (vUv.x < 0.01 || vUv.x > 0.99 || vUv.y < 0.01 || vUv.y > 0.99) {
+                discard;
+              }
+
               vec4 tColor = texture2D(videoTextureSampler, vUv);
               
-              // Calcula la diferencia entre el color del pixel y el MAGENTA
+              // Calcula la diferencia entre el color del pixel y tu nuevo color #CB6370
               float diff = length(tColor.rgb - color.rgb);
               
-              // TOLERANCIA ULTRA AMPLIADA: Atrapa todo el rango de rosados/fucsias de la compresión
-              // AJUSTE: Ampliamos el umbral para ser más agresivos borrando el velo oscuro
-              float a = smoothstep(0.4, 0.9, diff); 
+              // 2. RECUPERAR SOLIDEZ EN LA MONTAÑA Y EL TUMI
+              // Mantenemos el límite máximo muy bajo para proteger los colores cálidos
+              float a = smoothstep(0.12, 0.22, diff); 
               
-              // DESTRUCCIÓN DEL FANTASMA: Si el píxel es mayormente fondo (opacidad menor al 30%), 
-              // lo destruimos por completo (discard) para que no genere el velo semi-transparente.
-              if (a < 0.3) {
+              // Destruimos el fondo sin piedad
+              if (a < 0.1) {
                 discard;
+              }
+              
+              // Si el píxel superó la prueba de destrucción (es parte del diseño), 
+              // forzamos su opacidad al 100% para evitar zonas semitransparentes (como la montaña).
+              // Esto hace que el borde sea un poco más duro (menos difuminado), pero garantiza colores sólidos.
+              if (a >= 0.1) {
+                 a = 1.0;
               }
               
               gl_FragColor = vec4(tColor.rgb, tColor.a * a);
