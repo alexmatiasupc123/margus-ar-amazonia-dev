@@ -10,12 +10,12 @@
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
   <script>
-    // Componente Shader ACTUALIZADO apuntando al color exacto de compresión (#CB6370)
+    // Componente Shader ACTUALIZADO apuntando al color exacto de compresión (#2596be)
     AFRAME.registerComponent('chromakey', {
       schema: {
         src: { type: 'selector' },
-        // RGB equivalente a #CB6370 (203/255, 99/255, 112/255)
-        color: { default: '0.796 0.388 0.439' } 
+        // RGB equivalente a #2596be (37/255, 150/255, 190/255)
+        color: { default: '0.145 0.588 0.745' } 
       },
       init: function () {
         const data = this.data;
@@ -29,8 +29,8 @@
 
         this.material = new THREE.ShaderMaterial({
           uniforms: {
-            // Buscamos exactamente tu hexadecimal
-            color: { value: new THREE.Color(0xcb6370) },
+            // Buscamos exactamente tu nuevo hexadecimal azul
+            color: { value: new THREE.Color(0x2596be) },
             videoTextureSampler: { value: this.videoTexture }
           },
           vertexShader: `
@@ -53,7 +53,7 @@
 
               vec4 tColor = texture2D(videoTextureSampler, vUv);
               
-              // Calcula la diferencia entre el color del pixel y tu nuevo color #CB6370
+              // Calcula la diferencia entre el color del pixel y tu nuevo color #2596be
               float diff = length(tColor.rgb - color.rgb);
               
               // 2. RECUPERAR SOLIDEZ EN LA MONTAÑA Y EL TUMI
@@ -212,7 +212,7 @@
     <a-assets>
       <!-- Asegúrate de poner el nombre correcto de tu nuevo video aquí -->
       <video id="video-target" 
-             src="./peru-2.mp4" 
+             src="./peru.mp4" 
              preload="auto" 
              loop="true" 
              playsinline 
