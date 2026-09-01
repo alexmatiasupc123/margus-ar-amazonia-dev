@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Realidad Aumentada - Arequipa</title>
+  
+  <!-- Importamos A-Frame y MindAR -->
+  <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+
+  <script>
+    // Componente Shader ACTUALIZADO apuntando al color exacto de compresión (#C33976)
+    AFRAME.registerComponent('chromakey', {
+      schema: {
+        src: { type: 'selector' },
+        // RGB equivalente a #C33976 (195/255, 57/255, 118/255)
+        color: { default: '0.765 0.224 0.463' } 
+      },
+      init: function () {
+        const data = this.data;
+        const el = this.el;
+        this.videoEl = data.src;
+        
+        this.videoTexture = new THREE.VideoTexture(this.videoEl);
+        this.videoTexture.minFilter = THREE.LinearFilter;
+        this.videoTexture.magFilter = THREE.LinearFilter;
+        this.videoTexture.format = THREE.RGBAFormat;
+
+        this.material = new THREE.ShaderMaterial({
+          uniforms: {
+            // Buscamos exactamente tu nuevo hexadecimal fucsia/rosado
+            color: { value: new THREE.Color(0xc33976) },
+            videoTextureSampler: { value: this.videoTexture }
+          },
+          vertexShader: `
+            varying vec2 vUv;
+            void main() {
+              vUv = uv;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `,
+          fragmentShader: `
+            uniform vec3 color;
+            uniform sampler2D videoTextureSampler;
+            varying vec2 vUv;
+            void main() {
+              // 1. ELIMINAR LÍNEAS FLOTANTES EN LOS BORDES
+              // Corta un 1% de cada borde para ocultar líneas amarillas o artefactos de render
+              if (vUv.x < 0.01 || vUv.x > 0.99 || vUv.y < 0.01 || vUv.y > 0.99) {
+                discard;
+              }
+
+              vec4 tColor = texture2D(videoTextureSampler, vUv);
+              
+              // Calcula la diferencia entre el color del pixel y tu nuevo color #C33976
+              float diff = length(tColor.rgb - color.rgb);
+              
+              // 2. RECUPERAR SOLIDEZ EN LA MONTAÑA Y EL TUMI
+              // Mantenemos el límite máximo muy bajo para proteger los colores cálidos
+              float a = smoothstep(0.12, 0.22, diff); 
+              
+              // Destruimos el fondo sin piedad
+              if (a < 0.1) {
+                discard;
+              }
+              
+              // Si el píxel superó la prueba de destrucción (es parte del diseño), 
+              // forzamos su opacidad al 100% para evitar zonas semitransparentes (como la montaña).
+              // Esto hace que el borde sea un poco más duro (menos difuminado), pero garantiza colores sólidos.
+              if (a >= 0.1) {
+                 a = 1.0;
+              }
+              
+              gl_FragColor = vec4(tColor.rgb, tColor.a * a);
+            }
+          `,
+          transparent: true
+        });
+
+        el.getObject3D('mesh').material = this.material;
+      },
+      tick: function () {
+        if (this.material && this.videoTexture && this.videoEl && !this.videoEl.paused) {
+          this.videoTexture.needsUpdate = true;
+        }
+      }
+    });
+
+    // Controlador AR optimizado para compatibilidad móvil (Android / iOS)
+    AFRAME.registerComponent('ar-controller', {
+      init: function () {
+        const target = this.el;
+        const video = document.querySelector('#video-target');
+        const videoPlane = document.querySelector('#video-plane');
+        const overlay = document.querySelector('#ui-overlay');
+        const startBtn = document.querySelector('#btn-iniciar');
+
+        let isTargetVisible = false;
+
+        const forcePlayVideo = () => {
+          if (video && video.paused) {
+            video.play().catch(e => console.log("Reintento play:", e));
+          }
+        };
+
+        // Desbloqueo y arranque fluido al presionar Empezar
+        startBtn.addEventListener('click', () => {
+          overlay.style.display = 'none';
+          
+          // Desenmudecer el video de inmediato al hacer clic
+          video.muted = false;
+          video.defaultMuted = false;
+          
+          // Arranca el video en segundo plano de inmediato para tener el decodificador listo
+          video.play().then(() => {
+            console.log("Decodificador de video activo y sonido habilitado.");
+          }).catch((err) => {
+            console.warn("Autoplay en espera: ", err);
+          });
+        });
+
+        // Primera detección de imagen
+        target.addEventListener('targetFound', () => {
+          console.log("¡Imagen encontrada!");
+          isTargetVisible = true;
+          
+          videoPlane.setAttribute('visible', true);
+
+          // Asegura la reproducción inmediata sin trabas
+          forcePlayVideo();
+        });
+
+        // Pérdida de foco de la imagen
+        target.addEventListener('targetLost', () => {
+          console.log("Imagen fuera de cuadro.");
+          isTargetVisible = false;
+          videoPlane.setAttribute('visible', false);
+        });
+
+        // Reintento continuo en tick por si el primer frame en Android demoró en despertar
+        this.tick = function () {
+          if (isTargetVisible && video && video.paused) {
+            forcePlayVideo();
+          }
+        };
+      }
+    });
+  </script>
+
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+    
+    #ui-overlay {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.88);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      text-align: center;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    #ui-overlay h1 { margin: 0 0 12px 0; font-size: 24px; font-weight: 700; }
+    #ui-overlay p { margin: 0 0 32px 0; font-size: 15px; opacity: 0.85; max-width: 290px; line-height: 1.4; }
+
+    .btn-action {
+      background: linear-gradient(135deg, #2ecc71, #27ae60);
+      color: white;
+      border: none;
+      padding: 16px 36px;
+      font-size: 17px;
+      font-weight: 700;
+      border-radius: 50px;
+      box-shadow: 0 6px 20px rgba(46, 204, 113, 0.35);
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      touch-action: manipulation;
+    }
+    .btn-action:active { 
+      transform: scale(0.96); 
+      box-shadow: 0 2px 10px rgba(46, 204, 113, 0.2);
+    }
+    
+    .mindar-ui-overlay { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <div id="ui-overlay">
+    <h1>Arequipa</h1>
+    <p>Toca el botón y apunta tu cámara hacia la ilustración para ver la animación.</p>
+    <button id="btn-iniciar" class="btn-action">Empezar Experiencia</button>
+  </div>
+
+  <a-scene 
+    mindar-image="imageTargetSrc: ./targets_arequipa.mind; filterMinCF:0.001; filterBeta: 0.01;" 
+    color-space="sRGB" 
+    renderer="colorManagement: true, physicallyCorrectLights" 
+    vr-mode-ui="enabled: false" 
+    device-orientation-permission-ui="enabled: false">
+    
+    <a-assets>
+      <!-- Asegúrate de poner el nombre correcto de tu nuevo video aquí -->
+      <video id="video-target" 
+             src="./arequipa.mp4" 
+             preload="auto" 
+             loop="true" 
+             playsinline 
+             webkit-playsinline
+             crossorigin="anonymous">
+      </video>
+    </a-assets>
+
+    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+    <a-entity mindar-image-target="targetIndex: 0" ar-controller>
+      
+      <!-- El plano inicia en visible="false" para sincronización perfecta al enfocar -->
+      <a-plane 
+        id="video-plane"
+        position="0 0 0" 
+        width="1.777" height="1"  
+        scale="1.1 1.1 1.1"       
+        chromakey="src: #video-target"
+        material="transparent: true"
+        visible="false">
+      </a-plane>
+      
+    </a-entity>
+  </a-scene>
+
+</body>
+</html>
