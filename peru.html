@@ -50,11 +50,12 @@
               float diff = length(tColor.rgb - color.rgb);
               
               // TOLERANCIA ULTRA AMPLIADA: Atrapa todo el rango de rosados/fucsias de la compresión
-              float a = smoothstep(0.6, 0.85, diff); 
+              // AJUSTE: Ampliamos el umbral para ser más agresivos borrando el velo oscuro
+              float a = smoothstep(0.4, 0.9, diff); 
               
-              // DESTRUCCIÓN DEL FANTASMA: Si el píxel es mayormente fondo (opacidad menor al 15%), 
+              // DESTRUCCIÓN DEL FANTASMA: Si el píxel es mayormente fondo (opacidad menor al 30%), 
               // lo destruimos por completo (discard) para que no genere el velo semi-transparente.
-              if (a < 0.15) {
+              if (a < 0.3) {
                 discard;
               }
               
