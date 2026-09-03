@@ -51,27 +51,25 @@
 
               vec4 tColor = texture2D(videoTextureSampler, vUv);
               
-              // Distancia entre el color actual y nuestro fucsia promedio
-              float diff = length(tColor.rgb - color.rgb);
+              // MÁSCARA DE RECORTE GEOMÉTRICA (La solución definitiva)
+              // Sabemos que el diseño es una publicación de Instagram (un rectángulo).
+              // Todo lo que esté fuera de ese rectángulo es "Fondo", no importa de qué color sea.
               
-              // TOLERANCIA AMPLIADA PARA BORRAR LA MANCHA INFERIOR
-              // Ampliamos el rango para que atrape esas sombras fucsias oscuras
-              float a = smoothstep(0.25, 0.45, diff); 
-              
-              // DESTRUCCIÓN AGRESIVA:
-              // Elevamos el umbral para destruir de raíz cualquier cosa que huela a fucsia (como la mancha de abajo)
-              if (a < 0.25) {
+              // Definimos los márgenes de tu diseño (ajusta estos valores si el marco blanco se corta mucho o poco)
+              // Asumimos que el diseño ocupa casi todo el video, con un pequeño margen
+              float leftMargin = 0.02;   // 2% desde la izquierda
+              float rightMargin = 0.98;  // 2% desde la derecha
+              float topMargin = 0.98;    // 2% desde arriba
+              float bottomMargin = 0.05; // 5% desde abajo (cortamos la mancha gruesa de raíz)
+
+              // Si el píxel está FUERA de los márgenes del dibujo, lo destruimos sin importar su color
+              if (vUv.x < leftMargin || vUv.x > rightMargin || vUv.y < bottomMargin || vUv.y > topMargin) {
                 discard;
               }
-              
-              // PROTECCIÓN DEL DISEÑO (BORDES DUROS):
-              // Si sobrevivió (es el marco blanco, el corazón rojo, etc.), lo volvemos 100% sólido.
-              // Esto evita que los colores vivos se vean difuminados o translúcidos.
-              if (a >= 0.25) {
-                 a = 1.0;
-              }
-              
-              gl_FragColor = vec4(tColor.rgb, tColor.a * a);
+
+              // Ahora, para el interior del marco (donde está el corazón y la foto),
+              // NO aplicamos ningún borrado. Lo dibujamos 100% sólido tal como es.
+              gl_FragColor = vec4(tColor.rgb, 1.0);
             }
           `,
           transparent: true
