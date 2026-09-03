@@ -54,20 +54,19 @@
               // Distancia entre el color actual y nuestro fucsia promedio
               float diff = length(tColor.rgb - color.rgb);
               
-              // TOLERANCIA EXPANDIDA: 
-              // Al ser un fondo ruidoso, necesitamos abarcar más rango (hasta 0.35)
-              // Pero mantenemos el límite inferior bajo (0.15) para proteger el naranja del marco
-              float a = smoothstep(0.15, 0.35, diff); 
+              // TOLERANCIA AJUSTADA: 
+              // Protegemos los tonos rojos (corazón, parapente, flores)
+              float a = smoothstep(0.12, 0.28, diff); 
               
               // DESTRUCCIÓN AGRESIVA:
-              // Cualquier píxel que sea similar al fondo (hasta un 20% de diferencia), lo destruimos.
-              // Esto eliminará esas manchas fucsias sueltas.
-              if (a < 0.2) {
+              // Solo destruimos los colores muy similares al fondo fucsia
+              if (a < 0.1) {
                 discard;
               }
               
-              // Protegemos el diseño: si no se destruyó, lo forzamos a ser 100% sólido
-              if (a >= 0.2) {
+              // Protegemos el diseño: si no se destruyó, lo forzamos a ser 100% sólido.
+              // Esto elimina el borde rosado/fantasma alrededor del marco blanco.
+              if (a >= 0.1) {
                  a = 1.0;
               }
               
