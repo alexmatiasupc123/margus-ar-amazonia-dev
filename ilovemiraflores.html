@@ -10,12 +10,12 @@
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
   <script>
-    // Componente Shader MULTI-TONO para eliminar el ruido de compresión fucsia
+    // Componente Shader ACTUALIZADO a PANTALLA AZUL (#0000FF)
     AFRAME.registerComponent('chromakey', {
       schema: {
         src: { type: 'selector' },
-        // Usamos el promedio de los hexas que enviaste: #E04D79 (224, 77, 121)
-        color: { default: '0.878 0.302 0.475' } 
+        // Azul Puro en RGB (Red=0, Green=0, Blue=1)
+        color: { default: '0.0 0.0 1.0' } 
       },
       init: function () {
         const data = this.data;
@@ -29,8 +29,8 @@
 
         this.material = new THREE.ShaderMaterial({
           uniforms: {
-            // Usamos un color central promedio de tus muestras: #D34C6C
-            color: { value: new THREE.Color(0xd34c6c) }, 
+            // Hexadecimal del Azul Puro: 0x0000ff
+            color: { value: new THREE.Color(0x0000ff) }, 
             videoTextureSampler: { value: this.videoTexture }
           },
           vertexShader: `
@@ -45,35 +45,27 @@
             uniform sampler2D videoTextureSampler;
             varying vec2 vUv;
             void main() {
-              // Limpiamos bordes extremos solamente (1%)
+              // Limpiar bordes extremos
               if (vUv.x < 0.01 || vUv.x > 0.99 || vUv.y < 0.01 || vUv.y > 0.99) {
                 discard;
               }
 
               vec4 tColor = texture2D(videoTextureSampler, vUv);
               
-              // Diferencia euclidiana
+              // Diferencia euclidiana contra el AZUL PURO
               float diff = length(tColor.rgb - color.rgb);
               
-              // PROTECCIÓN ESTRICTA DEL ROJO Y BLANCO:
-              // Los hexas que enviaste varían demasiado, desde #823347 (oscuro) hasta #E4597A (claro).
-              // Pero tienen algo en común: carecen casi por completo del canal AZUL (Blue).
-              // Tu diseño tiene colores puros (Rojo del corazón, Blanco del marco).
+              // Tolerancia amplia para soportar la compresión del azul
+              float a = smoothstep(0.35, 0.60, diff); 
               
-              // Estrategia de Rango Amplio pero Corte Duro:
-              // Atrapamos una gran cantidad de colores similares al fucsia (hasta 0.45 de distancia)
-              float a = smoothstep(0.20, 0.45, diff); 
-              
-              // DESTRUCCIÓN (Discard):
-              // Todo lo que sea muy similar al fucsia promedio (distancia menor a 0.28), lo borramos.
-              if (a < 0.28) {
+              // Destrucción total si es azul de fondo
+              if (a < 0.3) {
                 discard;
               }
               
-              // SOLIDEZ OBLIGATORIA (El truco contra la semitransparencia):
-              // Si el píxel sobrevivió a la destrucción (es el marco blanco, el corazón, el paisaje),
-              // NO permitimos que sea "semi-transparente". Lo forzamos a 100% sólido.
-              if (a >= 0.28) {
+              // Solidez total para todo lo que no sea el fondo azul
+              // Esto protege el corazón rojo, el marco blanco y el verde
+              if (a >= 0.3) {
                  a = 1.0;
               }
               
@@ -207,7 +199,7 @@
     
     <a-assets>
       <video id="video-target" 
-             src="./ilovemiraflores.mp4" 
+             src="./ilovemirafloress.mp4" 
              preload="auto" 
              loop="true" 
              playsinline 
