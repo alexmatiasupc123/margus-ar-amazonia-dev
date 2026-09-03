@@ -55,17 +55,17 @@
               // Diferencia euclidiana contra el AZUL PURO
               float diff = length(tColor.rgb - color.rgb);
               
-              // Tolerancia amplia para soportar la compresión del azul
-              float a = smoothstep(0.35, 0.60, diff); 
+              // TOLERANCIA MASIVA: Atrapa todo el azul oscuro/marino de la compresión
+              float a = smoothstep(0.45, 0.75, diff); 
               
-              // Destrucción total si es azul de fondo
-              if (a < 0.3) {
+              // DESTRUCCIÓN AGRESIVA: Borra sin piedad toda la franja inferior oscura
+              if (a < 0.45) {
                 discard;
               }
               
               // Solidez total para todo lo que no sea el fondo azul
-              // Esto protege el corazón rojo, el marco blanco y el verde
-              if (a >= 0.3) {
+              // Esto protege el marco blanco, negro y el corazón rojo
+              if (a >= 0.45) {
                  a = 1.0;
               }
               
@@ -199,7 +199,7 @@
     
     <a-assets>
       <video id="video-target" 
-             src="./ilovemirafloress.mp4" 
+             src="./ilovemiraflores.mp4" 
              preload="auto" 
              loop="true" 
              playsinline 
