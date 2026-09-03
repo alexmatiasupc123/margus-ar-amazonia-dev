@@ -29,7 +29,8 @@
 
         this.material = new THREE.ShaderMaterial({
           uniforms: {
-            color: { value: new THREE.Color(0xe04d79) }, // Color base promedio
+            // Usamos un color central promedio de tus muestras: #D34C6C
+            color: { value: new THREE.Color(0xd34c6c) }, 
             videoTextureSampler: { value: this.videoTexture }
           },
           vertexShader: `
@@ -44,32 +45,39 @@
             uniform sampler2D videoTextureSampler;
             varying vec2 vUv;
             void main() {
-              // Limpiamos los bordes (1%) por si acaso hay líneas
+              // Limpiamos bordes extremos solamente (1%)
               if (vUv.x < 0.01 || vUv.x > 0.99 || vUv.y < 0.01 || vUv.y > 0.99) {
                 discard;
               }
 
               vec4 tColor = texture2D(videoTextureSampler, vUv);
               
-              // MÁSCARA DE RECORTE GEOMÉTRICA (La solución definitiva)
-              // Sabemos que el diseño es una publicación de Instagram (un rectángulo).
-              // Todo lo que esté fuera de ese rectángulo es "Fondo", no importa de qué color sea.
+              // Diferencia euclidiana
+              float diff = length(tColor.rgb - color.rgb);
               
-              // Definimos los márgenes de tu diseño (ajusta estos valores si el marco blanco se corta mucho o poco)
-              // Asumimos que el diseño ocupa casi todo el video, con un pequeño margen
-              float leftMargin = 0.02;   // 2% desde la izquierda
-              float rightMargin = 0.98;  // 2% desde la derecha
-              float topMargin = 0.98;    // 2% desde arriba
-              float bottomMargin = 0.05; // 5% desde abajo (cortamos la mancha gruesa de raíz)
-
-              // Si el píxel está FUERA de los márgenes del dibujo, lo destruimos sin importar su color
-              if (vUv.x < leftMargin || vUv.x > rightMargin || vUv.y < bottomMargin || vUv.y > topMargin) {
+              // PROTECCIÓN ESTRICTA DEL ROJO Y BLANCO:
+              // Los hexas que enviaste varían demasiado, desde #823347 (oscuro) hasta #E4597A (claro).
+              // Pero tienen algo en común: carecen casi por completo del canal AZUL (Blue).
+              // Tu diseño tiene colores puros (Rojo del corazón, Blanco del marco).
+              
+              // Estrategia de Rango Amplio pero Corte Duro:
+              // Atrapamos una gran cantidad de colores similares al fucsia (hasta 0.45 de distancia)
+              float a = smoothstep(0.20, 0.45, diff); 
+              
+              // DESTRUCCIÓN (Discard):
+              // Todo lo que sea muy similar al fucsia promedio (distancia menor a 0.28), lo borramos.
+              if (a < 0.28) {
                 discard;
               }
-
-              // Ahora, para el interior del marco (donde está el corazón y la foto),
-              // NO aplicamos ningún borrado. Lo dibujamos 100% sólido tal como es.
-              gl_FragColor = vec4(tColor.rgb, 1.0);
+              
+              // SOLIDEZ OBLIGATORIA (El truco contra la semitransparencia):
+              // Si el píxel sobrevivió a la destrucción (es el marco blanco, el corazón, el paisaje),
+              // NO permitimos que sea "semi-transparente". Lo forzamos a 100% sólido.
+              if (a >= 0.28) {
+                 a = 1.0;
+              }
+              
+              gl_FragColor = vec4(tColor.rgb, tColor.a * a);
             }
           `,
           transparent: true
